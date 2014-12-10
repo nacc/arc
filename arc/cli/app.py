@@ -120,26 +120,37 @@ class App(object):
         """
         if self.connection is not None:
             self.log.debug("Connection is already initialized")
+            return
+
+        if hasattr(self.parsed_arguments, "host"):
+            h = self.parsed_arguments.host
+            self.log.debug("Connecting to: %s", h)
         else:
-            if hasattr(self.parsed_arguments, "username"):
-                u = self.parsed_arguments.username
-            else:
-                u = None
-            if hasattr(self.parsed_arguments, "host"):
-                h = self.parsed_arguments.host
-                self.log.debug("Connecting to: %s", h)
-                try:
-                    self.connection = arc.connection.Connection(h, username=u)
-                except arc.connection.InvalidServiceVersionError:
-                    self.log.error("The RPC interface version on the connected "
-                                   "server is more recent than this version of "
-                                   "arc can support. Please use a more recent "
-                                   "version of arc that should include support "
-                                   "for the latest Autotest version.")
-                    raise SystemExit
-            else:
-                self.log.warn("Host setting not present on arguments, not "
-                              "initializing a connection")
+            self.log.warn("Host setting not present on arguments, not "
+                          "initializing a connection")
+            return
+
+        if hasattr(self.parsed_arguments, "username"):
+            u = self.parsed_arguments.username
+        else:
+            u = None
+
+        if hasattr(self.parsed_arguments, "port"):
+            p = self.parsed_arguments.port
+        else:
+            p = None
+
+        try:
+            self.connection = arc.connection.Connection(hostname=h,
+                                                        port=h,
+                                                        username=u)
+        except arc.connection.InvalidServiceVersionError:
+            self.log.error("The RPC interface version on the connected "
+                           "server is more recent than this version of "
+                           "arc can support. Please use a more recent "
+                           "version of arc that should include support "
+                           "for the latest Autotest version.")
+            raise SystemExit
 
     def dispatch_action(self):
         """
@@ -196,9 +207,6 @@ class App(object):
             print 'Interrupted'
         except URLError as e:
             self.log.error(e)
-        except arc.proxy.RPCError as e:
-            msg = e.message.split('\n')
-            self.log.error(msg[0])
         if isinstance(action_result, int):
             sys.exit(action_result)
         elif isinstance(action_result, bool):

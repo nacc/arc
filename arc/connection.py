@@ -13,17 +13,15 @@
 # Author: Cleber Rosa <cleber@redhat.com>
 
 """
-This module provides connection classes to both the AFE and TKO services of the
-autotest server.
+This module provides connection classes the avocado server.
 
-A connection is a simple wrapper around a JSON-RPC Proxy instance. It is the
-basic object that allows methods to be called on the remote RPC server.
+A connection is a simple wrapper around a HTTP request instance. It is this
+basic object that allows methods to be called on the remote server.
 """
 
 import arc.config
-import arc.proxy
-import arc.shared.frontend
-import arc.shared.rpc
+
+import requests
 
 
 __all__ = ['get_default', 'Connection']
@@ -49,33 +47,40 @@ class RpcAuthError(Exception):
     pass
 
 
-class InvalidProxyError(Exception):
+class InvalidConnectionError(Exception):
 
     """
-    Invalid proxy for selected service
-    """
-    pass
-
-
-class InvalidServiceVersionError(Exception):
-
-    """
-    The service version does not satisfy the minimum required version
+    Invalid connection for selected server
     """
     pass
 
 
-class BaseConnection(object):
+class InvalidServerVersionError(Exception):
 
     """
-    Base RPC connection
+    The server version does not satisfy the minimum required version
+    """
+    pass
+
+
+class Connection(object):
+
+    """
+    Connection to the avocado server
     """
 
-    def __init__(self, hostname=None, port=None, path=None, username=None):
+    def __init__(self, hostname=None, port=None, username=None, password=None):
         """
-        Initializes a connection to an empty path
+        Initializes a connection to an avocado server instance
 
-        This empty path does not exist on a default Autotest server
+        :param hostname:
+        :type hostname:
+        :param port:
+        :type port:
+        :param username:
+        :type username:
+        :param password:
+        :type password:
         """
         if hostname is None:
             hostname = arc.config.get_default().get_server_host()
@@ -85,34 +90,24 @@ class BaseConnection(object):
             port = arc.config.get_default().get_server_port()
         self.port = port
 
-        if path is None:
-            path = arc.shared.rpc.DEFAULT_PATH
-
         if username is None:
             username = arc.config.get_default().get_username()
         self.username = username
 
-        self.services = {}
-        self.service_proxies = {}
-        self.service_interface_versions = {}
+        self.password = password
 
         try:
-            self.proxy = self._connect(path, self.username)
+            min_version_ok = self.check_min_version()
+            if not min_version_ok:
+                raise InvalidServerVersionError
+            pass
         except RpcAuthError:
             raise AuthError
 
-    def _connect(self, path, username):
-        """
-        Setup authorization headers and instantiate a JSON RPC Service Proxy
+    def get_url(self, path):
+        return 'http://%s:%s/%s' % (self.hostname, self.port, path)
 
-        :param path: the URI path where the service is hosted
-        :param username: the username to login
-        """
-        rpc_uri = "http://%s:%s/%s" % (self.hostname, self.port, path)
-        headers = {'AUTHORIZATION': username}
-        return arc.proxy.Proxy(rpc_uri, headers)
-
-    def run(self, service, operation, *args, **data):
+    def run(self, path, method=requests.get, **data):
         """
         Runs a method using the rpc proxy
 
@@ -120,81 +115,44 @@ class BaseConnection(object):
         than not, those upper level API methods should be used instead.
 
         :param operation: the name of the RPC method on the Autotest server
-        :param args: positional arguments to be passed to the RPC method
-        :param data: keyword arguments to be passed to the RPC method
+        :param method: the method you want to call on the remote server,
+                       defaults to a HTTP GET
+        :param data: keyword arguments to be passed to the remote method
         """
-        proxy = self.service_proxies.get(service, None)
-        if proxy is None:
-            raise InvalidProxyError
+        url = self.get_url(path)
 
-        function = getattr(proxy, operation)
-        result = function(*args, **data)
-        return result
+        if (self.username is not None) and (self.password is not None):
+            return method(url,
+                          auth=(self.username, self.password),
+                          params=data)
+        else:
+            return method(url, params=data)
 
-    def add_service(self, name, path):
+    def check_min_version(self):
         """
-        Add a service to a connection
-
-        :param name: a descriptive name to the service
-        :param path: the path in the URI that hosts the service
+        Checks the minimum server version
         """
-        self.services[name] = path
-        self.service_proxies[name] = self._connect(path, self.username)
-        try:
-            api_version = tuple(self.run(name, "get_interface_version"))
-        except:
-            api_version = None
-        self.service_interface_versions[name] = api_version
+        response = self.run('version')
+        version = response.json().get('version')
+        if version is None:
+            return False
 
-        if not self.check_min_rpc_interface_version(name):
-            raise InvalidServiceVersionError
-
-    def check_min_rpc_interface_version(self, service_name):
-        """
-        Checks the minimum required RPC interface version
-
-        :param service_name: the registered name of the service
-        """
-        min_version = MIN_REQUIRED_VERSION.get(service_name, None)
-        if min_version is None:
-            return True
-
-        current_version = self.service_interface_versions.get(service_name,
-                                                              None)
-        if current_version is None:
-            return True
-
-        return current_version >= min_version
+        major, minor, release = version.split('.', 3)
+        version = (int(major), int(minor), int(release))
+        return version >= MIN_REQUIRED_VERSION
 
     def ping(self):
         """
         Tests connectivity to the RPC server
         """
         try:
-            self.run(arc.shared.frontend.AFE_SERVICE_NAME,
-                     "get_server_time")
+            self.run('version')
         except:
             return False
         return True
 
 
-class Connection(BaseConnection):
-
-    """
-    The default connection that allows access to both AFE and TKO services
-
-    :param hostname: the IP address or hostname of the server that will be
-           contacted upon RPC method execution.
-    :param port: the port number where the RPC server is running
-    """
-
-    def __init__(self, hostname=None, port=None, username=None):
-        super(Connection, self).__init__(hostname, port, username=username)
-        for (name, path) in arc.shared.rpc.PATHS.items():
-            self.add_service(name, path)
-
-
-#: Global, default connection to an AFE service for ease of use by apps
+#: Global, default connection for ease of use by apps
 CONNECTION = None
 
 

@@ -33,7 +33,7 @@ CONFIG_USR_PATH = '~/.arc.conf'
 #: The default host to connect to
 SERVER_HOST = 'localhost'
 #: The default port to connect to
-SERVER_PORT = 80
+SERVER_PORT = 9405
 
 #: Python namespace prefix for CLI arguments
 ARGS_MODULE_PREFIX = 'arc.cli.args'

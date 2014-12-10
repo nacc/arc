@@ -9,5 +9,10 @@
 #
 # See LICENSE for more details.
 #
-# Copyright (c) 2013-2014 Red Hat
+# Copyright (c) 2013-2015 Red Hat
 # Author: Cleber Rosa <cleber@redhat.com>
+
+import arc.connection
+
+c = arc.connection.get_default()
+c.ping()
