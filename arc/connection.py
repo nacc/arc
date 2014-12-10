@@ -9,7 +9,7 @@
 #
 # See LICENSE for more details.
 #
-# Copyright (c) 2013-2014 Red Hat
+# Copyright (c) 2013-2015 Red Hat
 # Author: Cleber Rosa <cleber@redhat.com>
 
 """
@@ -30,9 +30,7 @@ __all__ = ['get_default', 'Connection']
 
 
 #: Minimum required version of server side API
-MIN_REQUIRED_VERSION = {}
-MIN_REQUIRED_VERSION[arc.shared.frontend.AFE_SERVICE_NAME] = (2013, 9, 11)
-MIN_REQUIRED_VERSION[arc.shared.frontend.TKO_SERVICE_NAME] = (2013, 5, 23)
+MIN_REQUIRED_VERSION = (0, 1, 0)
 
 
 class AuthError(Exception):
