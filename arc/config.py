@@ -118,6 +118,18 @@ class UserLocalConfigParser(configparser.ConfigParser):
             value = getpass.getuser()
         return value
 
+    def get_password(self):
+        """
+        Returns the password to login
+        """
+        if os.environ.has_key('ARC_PASSWORD'):
+            value = os.environ['ARC_PASSWORD']
+        elif self.has_option('server', 'password'):
+            value = self.get('server', 'password')
+        else:
+            value = getpass.getpass()
+        return value
+
 
 Config = UserLocalConfigParser
 CONFIG = None

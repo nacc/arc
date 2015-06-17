@@ -24,6 +24,7 @@ import arc.config
 import arc.proxy
 import arc.shared.frontend
 import arc.shared.rpc
+import base64
 
 
 __all__ = ['get_default', 'Connection']
@@ -73,7 +74,7 @@ class BaseConnection(object):
     Base RPC connection
     """
 
-    def __init__(self, hostname=None, port=None, path=None, username=None):
+    def __init__(self, hostname=None, port=None, path=None, username=None, password=None):
         """
         Initializes a connection to an empty path
 
@@ -94,6 +95,10 @@ class BaseConnection(object):
             username = arc.config.get_default().get_username()
         self.username = username
 
+        if password is None:
+            password = arc.config.get_default().get_password()
+        self.password = password
+
         self.services = {}
         self.service_proxies = {}
         self.service_interface_versions = {}
@@ -111,7 +116,8 @@ class BaseConnection(object):
         :param username: the username to login
         """
         rpc_uri = "http://%s:%s/%s" % (self.hostname, self.port, path)
-        headers = {'AUTHORIZATION': username}
+        base64string = base64.encodestring('%s:%s' % (self.username, self.password))[:-1]
+        headers = {'AUTHORIZATION': 'Basic %s' % base64string}
         return arc.proxy.Proxy(rpc_uri, headers)
 
     def run(self, service, operation, *args, **data):
